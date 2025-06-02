@@ -50,7 +50,8 @@ class Settings:
             },
             "ui": {
                 "theme": "light",
-                "language": "ja"
+                "language": "ja",
+                "csv_encoding": "utf-8"
             },
             "data": {
                 "cache_enabled": True,

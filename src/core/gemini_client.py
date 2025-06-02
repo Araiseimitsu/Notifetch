@@ -28,7 +28,8 @@ class GeminiClient:
         try:
             genai.configure(api_key=self.api_key)
             # 最新のGeminiモデルを使用
-            self.model = genai.GenerativeModel('gemini-2.0-flash-lite')
+            # self.model = genai.GenerativeModel('gemini-2.0-flash-lite')
+            self.model = genai.GenerativeModel('gemma-3n-e4b-it')
             self.is_connected = True
             logger.info("Gemini APIクライアントが初期化されました")
         except Exception as e:

@@ -31,6 +31,9 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.load_settings()
         
+        # テーマを初期読み込み時に適用
+        self.apply_theme()
+        
         # デフォルトのウィンドウサイズとタイトル
         self.setWindowTitle("NotiFetch - Notion データ取得・分析ツール")
         self.setGeometry(100, 100, 1200, 800)
@@ -294,11 +297,444 @@ class MainWindow(QMainWindow):
             self.settings.set_ui_setting("language", self.language_combo.currentText())
             self.settings.set_ui_setting("csv_encoding", self.encoding_combo.currentText())
             
+            # テーマを即座に適用
+            self.apply_theme()
+            
             QMessageBox.information(self, "設定保存", "設定が正常に保存されました。")
             logger.info("設定を保存しました")
         except Exception as e:
             logger.error(f"設定保存エラー: {e}")
             QMessageBox.critical(self, "エラー", f"設定の保存に失敗しました: {e}")
+    
+    def apply_theme(self):
+        """テーマの適用"""
+        theme = self.settings.get_ui_setting("theme", "light")
+        
+        if theme == "dark":
+            # ダークテーマのスタイルシート
+            dark_style = """
+            /* 全体のデフォルト色設定 */
+            QWidget {
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }
+            QMainWindow {
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }
+            /* メッセージボックス */
+            QMessageBox {
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }
+            QMessageBox QLabel {
+                color: #ffffff;
+                background-color: #2b2b2b;
+            }
+            QMessageBox QPushButton {
+                background-color: #4a90e2;
+                border: none;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 5px;
+                font-weight: bold;
+                min-width: 80px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #357abd;
+            }
+            QMessageBox QPushButton:pressed {
+                background-color: #2968a3;
+            }
+            /* タブウィジェット */
+            QTabWidget::pane {
+                border: 1px solid #555;
+                background-color: #2b2b2b;
+            }
+            QTabBar::tab {
+                background-color: #3c3c3c;
+                color: #ffffff;
+                border: 1px solid #555;
+                padding: 8px 15px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: #4a90e2;
+                border-bottom-color: #4a90e2;
+            }
+            QTabBar::tab:hover {
+                background-color: #4c4c4c;
+            }
+            /* グループボックス */
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #555;
+                border-radius: 5px;
+                margin-top: 1ex;
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                color: #ffffff;
+                background-color: #2b2b2b;
+            }
+            /* 入力フィールド */
+            QLineEdit, QTextEdit {
+                border: 2px solid #555;
+                border-radius: 5px;
+                padding: 5px;
+                background-color: #3c3c3c;
+                color: #ffffff;
+            }
+            QLineEdit:focus, QTextEdit:focus {
+                border-color: #4a90e2;
+            }
+            /* コンボボックス */
+            QComboBox {
+                border: 2px solid #555;
+                border-radius: 5px;
+                padding: 5px;
+                background-color: #3c3c3c;
+                color: #ffffff;
+                min-width: 100px;
+            }
+            QComboBox:focus {
+                border-color: #4a90e2;
+            }
+            QComboBox::drop-down {
+                background-color: #4c4c4c;
+                border: none;
+            }
+            QComboBox::down-arrow {
+                color: #ffffff;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #3c3c3c;
+                color: #ffffff;
+                border: 1px solid #555;
+                selection-background-color: #4a90e2;
+                selection-color: #ffffff;
+            }
+            /* ボタン */
+            QPushButton {
+                background-color: #4a90e2;
+                border: none;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #357abd;
+            }
+            QPushButton:pressed {
+                background-color: #2968a3;
+            }
+            QPushButton:disabled {
+                background-color: #555;
+                color: #999;
+            }
+            /* テーブル */
+            QTableWidget {
+                gridline-color: #555;
+                background-color: #3c3c3c;
+                alternate-background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #555;
+            }
+            QTableWidget::item {
+                border: none;
+                padding: 4px;
+            }
+            QTableWidget::item:selected {
+                background-color: #4a90e2;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #4a90e2;
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+            /* スクロールバー */
+            QScrollBar:vertical {
+                background-color: #3c3c3c;
+                width: 15px;
+                border-radius: 7px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #555;
+                border-radius: 7px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #666;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                background: none;
+                border: none;
+            }
+            QScrollBar:horizontal {
+                background-color: #3c3c3c;
+                height: 15px;
+                border-radius: 7px;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #555;
+                border-radius: 7px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background-color: #666;
+            }
+            /* プログレスバー */
+            QProgressBar {
+                border: 2px solid #555;
+                border-radius: 5px;
+                text-align: center;
+                background-color: #3c3c3c;
+                color: #ffffff;
+            }
+            QProgressBar::chunk {
+                background-color: #4a90e2;
+                border-radius: 3px;
+            }
+            /* ステータスバー */
+            QStatusBar {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border-top: 1px solid #555;
+            }
+            /* ラベル */
+            QLabel {
+                color: #ffffff;
+                background-color: transparent;
+            }
+            /* フレーム */
+            QFrame {
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }
+            """
+            self.setStyleSheet(dark_style)
+        else:
+            # ライトテーマ（デフォルト）のスタイルシート
+            light_style = """
+            /* 全体のデフォルト色設定 */
+            QWidget {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            QMainWindow {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            /* メッセージボックス */
+            QMessageBox {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            QMessageBox QLabel {
+                color: #000000;
+                background-color: #ffffff;
+            }
+            QMessageBox QPushButton {
+                background-color: #4a90e2;
+                border: none;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 5px;
+                font-weight: bold;
+                min-width: 80px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #357abd;
+            }
+            QMessageBox QPushButton:pressed {
+                background-color: #2968a3;
+            }
+            /* タブウィジェット */
+            QTabWidget::pane {
+                border: 1px solid #ddd;
+                background-color: #ffffff;
+            }
+            QTabBar::tab {
+                background-color: #f0f0f0;
+                color: #000000;
+                border: 1px solid #ddd;
+                padding: 8px 15px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: #4a90e2;
+                color: #ffffff;
+                border-bottom-color: #4a90e2;
+            }
+            QTabBar::tab:hover {
+                background-color: #e0e0e0;
+            }
+            /* グループボックス */
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                margin-top: 1ex;
+                background-color: #ffffff;
+                color: #000000;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                color: #000000;
+                background-color: #ffffff;
+            }
+            /* 入力フィールド */
+            QLineEdit, QTextEdit {
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                padding: 5px;
+                background-color: #ffffff;
+                color: #000000;
+            }
+            QLineEdit:focus, QTextEdit:focus {
+                border-color: #4a90e2;
+            }
+            /* コンボボックス */
+            QComboBox {
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                padding: 5px;
+                background-color: #ffffff;
+                color: #000000;
+                min-width: 100px;
+            }
+            QComboBox:focus {
+                border-color: #4a90e2;
+            }
+            QComboBox::drop-down {
+                background-color: #f0f0f0;
+                border: none;
+            }
+            QComboBox::down-arrow {
+                color: #000000;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #ffffff;
+                color: #000000;
+                border: 1px solid #ddd;
+                selection-background-color: #4a90e2;
+                selection-color: #ffffff;
+            }
+            /* ボタン */
+            QPushButton {
+                background-color: #4a90e2;
+                border: none;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #357abd;
+            }
+            QPushButton:pressed {
+                background-color: #2968a3;
+            }
+            QPushButton:disabled {
+                background-color: #ccc;
+                color: #666;
+            }
+            /* テーブル */
+            QTableWidget {
+                gridline-color: #ddd;
+                background-color: #ffffff;
+                alternate-background-color: #f9f9f9;
+                color: #000000;
+                border: 1px solid #ddd;
+            }
+            QTableWidget::item {
+                border: none;
+                padding: 4px;
+            }
+            QTableWidget::item:selected {
+                background-color: #4a90e2;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #4a90e2;
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+            /* スクロールバー */
+            QScrollBar:vertical {
+                background-color: #f0f0f0;
+                width: 15px;
+                border-radius: 7px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #ccc;
+                border-radius: 7px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #bbb;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                background: none;
+                border: none;
+            }
+            QScrollBar:horizontal {
+                background-color: #f0f0f0;
+                height: 15px;
+                border-radius: 7px;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #ccc;
+                border-radius: 7px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background-color: #bbb;
+            }
+            /* プログレスバー */
+            QProgressBar {
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                text-align: center;
+                background-color: #ffffff;
+                color: #000000;
+            }
+            QProgressBar::chunk {
+                background-color: #4a90e2;
+                border-radius: 3px;
+            }
+            /* ステータスバー */
+            QStatusBar {
+                background-color: #ffffff;
+                color: #000000;
+                border-top: 1px solid #ddd;
+            }
+            /* ラベル */
+            QLabel {
+                color: #000000;
+                background-color: transparent;
+            }
+            /* フレーム */
+            QFrame {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            """
+            self.setStyleSheet(light_style)
+        
+        logger.info(f"テーマを{theme}に変更しました")
     
     def test_notion_connection(self):
         """Notion接続テスト"""
