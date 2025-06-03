@@ -1,15 +1,17 @@
 import sys
 import logging
+import webbrowser
 from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QTabWidget, QLabel, QLineEdit, QPushButton, QTextEdit,
     QProgressBar, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QFileDialog, QComboBox, QGroupBox, QFormLayout,
-    QSplitter, QScrollArea, QFrame, QApplication
+    QSplitter, QScrollArea, QFrame, QApplication, QListWidget,
+    QListWidgetItem, QMenu, QInputDialog, QDialog
 )
 from PySide6.QtCore import Qt, QThread, QObject, Signal, QTimer
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QFont, QIcon, QAction
 
 from ..config.settings import Settings
 from ..core.notion_client import NotionClient
@@ -82,13 +84,33 @@ class MainWindow(QMainWindow):
         page_group = QGroupBox("ページ/データベース設定")
         page_layout = QFormLayout(page_group)
         
+        # ページID入力とボタンのレイアウト
+        page_input_layout = QHBoxLayout()
         self.page_id_input = QLineEdit()
         self.page_id_input.setPlaceholderText("ページID または URL")
-        page_layout.addRow("ページ/データベース ID:", self.page_id_input)
         
+        self.history_btn = QPushButton("履歴")
+        self.history_btn.clicked.connect(self.show_page_history)
+        self.history_btn.setMaximumWidth(60)
+        
+        page_input_layout.addWidget(self.page_id_input)
+        page_input_layout.addWidget(self.history_btn)
+        
+        page_layout.addRow("ページ/データベース ID:", page_input_layout)
+        
+        # 検証ボタンと編集ボタン
+        button_layout = QHBoxLayout()
         self.validate_page_btn = QPushButton("ページ検証")
         self.validate_page_btn.clicked.connect(self.validate_page_id)
-        page_layout.addRow("", self.validate_page_btn)
+        
+        self.edit_page_btn = QPushButton("ページ編集")
+        self.edit_page_btn.clicked.connect(self.edit_current_page)
+        self.edit_page_btn.setEnabled(False)
+        
+        button_layout.addWidget(self.validate_page_btn)
+        button_layout.addWidget(self.edit_page_btn)
+        
+        page_layout.addRow("", button_layout)
         
         # ページ情報表示
         self.page_info_text = QTextEdit()
@@ -190,8 +212,13 @@ class MainWindow(QMainWindow):
         self.auto_insights_btn.clicked.connect(self.generate_auto_insights)
         self.auto_insights_btn.setEnabled(False)
         
+        self.infographic_btn = QPushButton("📊 インフォグラフィック化")
+        self.infographic_btn.clicked.connect(self.create_infographic)
+        self.infographic_btn.setEnabled(False)
+        
         analysis_btn_layout.addWidget(self.analyze_btn)
         analysis_btn_layout.addWidget(self.auto_insights_btn)
+        analysis_btn_layout.addWidget(self.infographic_btn)
         analysis_btn_layout.addStretch()
         
         analysis_layout.addLayout(analysis_btn_layout)
@@ -208,6 +235,20 @@ class MainWindow(QMainWindow):
         self.analysis_result = QTextEdit()
         self.analysis_result.setReadOnly(True)
         result_layout.addWidget(self.analysis_result)
+        
+        # HTMLダウンロードボタン
+        result_btn_layout = QHBoxLayout()
+        self.download_analysis_btn = QPushButton("📝 分析結果ダウンロード")
+        self.download_analysis_btn.clicked.connect(self.download_analysis_result)
+        self.download_analysis_btn.setEnabled(False)
+        
+        self.download_html_btn = QPushButton("📄 HTMLダウンロード")
+        self.download_html_btn.clicked.connect(self.download_html_infographic)
+        self.download_html_btn.setEnabled(False)
+        result_btn_layout.addWidget(self.download_analysis_btn)
+        result_btn_layout.addWidget(self.download_html_btn)
+        result_btn_layout.addStretch()
+        result_layout.addLayout(result_btn_layout)
         
         # レイアウトに追加
         layout.addWidget(gemini_group)
@@ -771,6 +812,7 @@ class MainWindow(QMainWindow):
                 if self.current_data is not None and not self.current_data.empty:
                     self.analyze_btn.setEnabled(True)
                     self.auto_insights_btn.setEnabled(True)
+                    self.infographic_btn.setEnabled(True)
             else:
                 QMessageBox.critical(self, "エラー", "Gemini APIに接続できませんでした。")
                 self.status_bar.showMessage("Gemini API 接続失敗")
@@ -796,12 +838,18 @@ class MainWindow(QMainWindow):
                 # 成功：ページまたはデータベースが見つかった
                 page_info = self.notion_client.get_page_info(page_id)
                 if page_info:
+                    # 履歴に追加
+                    self.settings.add_page_to_history(page_info)
+                    
                     info_text = f"タイプ: {page_info['type'].upper()}\n"
                     info_text += f"タイトル: {page_info['title']}\n"
                     info_text += f"作成日時: {page_info['created_time']}\n"
                     info_text += f"更新日時: {page_info['last_edited_time']}\n"
                     info_text += f"URL: {page_info['url']}"
                     self.page_info_text.setText(info_text)
+                    
+                    # 編集ボタンを有効化
+                    self.edit_page_btn.setEnabled(True)
                 
                 success_message = f"✅ {validation_result['message']}\n"
                 success_message += f"タイプ: {validation_result['type'].upper()}"
@@ -811,6 +859,7 @@ class MainWindow(QMainWindow):
             else:
                 # 失敗：詳細な理由を表示
                 self.page_info_text.clear()
+                self.edit_page_btn.setEnabled(False)
                 
                 if validation_result["error_code"] == "not_found":
                     # ページが存在しない（正常な状況）
@@ -853,6 +902,189 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "エラー", f"ページID検証中に予期しないエラーが発生しました:\n{e}")
             self.page_info_text.clear()
             self.status_bar.showMessage("ページID検証失敗")
+            self.edit_page_btn.setEnabled(False)
+    
+    def show_page_history(self):
+        """ページ履歴ダイアログを表示"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("ページ履歴")
+        dialog.setModal(True)
+        dialog.resize(600, 400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # 履歴リスト
+        history_list = QListWidget()
+        history = self.settings.get_page_history()
+        
+        if not history:
+            item = QListWidgetItem("履歴がありません")
+            item.setData(Qt.UserRole, None)
+            history_list.addItem(item)
+        else:
+            for page_info in history:
+                title = page_info.get("title", "無題")
+                type_str = page_info.get("type", "unknown").upper()
+                last_accessed = page_info.get("last_accessed", "")
+                
+                item_text = f"[{type_str}] {title}\n最終アクセス: {last_accessed}"
+                item = QListWidgetItem(item_text)
+                item.setData(Qt.UserRole, page_info)
+                history_list.addItem(item)
+        
+        # 右クリックメニューの設定
+        history_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        history_list.customContextMenuRequested.connect(
+            lambda pos: self.show_history_context_menu(history_list, pos)
+        )
+        
+        layout.addWidget(QLabel("保存された履歴:"))
+        layout.addWidget(history_list)
+        
+        # ボタンレイアウト
+        button_layout = QHBoxLayout()
+        
+        select_btn = QPushButton("選択")
+        copy_id_btn = QPushButton("IDをコピー")
+        copy_url_btn = QPushButton("URLをコピー")
+        clear_btn = QPushButton("履歴クリア")
+        close_btn = QPushButton("閉じる")
+        
+        # ボタンイベント
+        def select_item():
+            current_item = history_list.currentItem()
+            if current_item and current_item.data(Qt.UserRole):
+                page_info = current_item.data(Qt.UserRole)
+                self.page_id_input.setText(page_info["id"])
+                dialog.accept()
+        
+        def copy_id():
+            current_item = history_list.currentItem()
+            if current_item and current_item.data(Qt.UserRole):
+                page_info = current_item.data(Qt.UserRole)
+                clipboard = QApplication.clipboard()
+                clipboard.setText(page_info["id"])
+                self.status_bar.showMessage("ページIDをクリップボードにコピーしました", 2000)
+        
+        def copy_url():
+            current_item = history_list.currentItem()
+            if current_item and current_item.data(Qt.UserRole):
+                page_info = current_item.data(Qt.UserRole)
+                clipboard = QApplication.clipboard()
+                clipboard.setText(page_info["url"])
+                self.status_bar.showMessage("URLをクリップボードにコピーしました", 2000)
+        
+        def clear_history():
+            reply = QMessageBox.question(
+                dialog, "確認", "履歴をすべて削除しますか？",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                self.settings.clear_page_history()
+                dialog.accept()
+                self.status_bar.showMessage("履歴をクリアしました", 2000)
+        
+        select_btn.clicked.connect(select_item)
+        copy_id_btn.clicked.connect(copy_id)
+        copy_url_btn.clicked.connect(copy_url)
+        clear_btn.clicked.connect(clear_history)
+        close_btn.clicked.connect(dialog.reject)
+        
+        # ダブルクリックで選択
+        history_list.itemDoubleClicked.connect(lambda: select_item())
+        
+        button_layout.addWidget(select_btn)
+        button_layout.addWidget(copy_id_btn)
+        button_layout.addWidget(copy_url_btn)
+        button_layout.addStretch()
+        button_layout.addWidget(clear_btn)
+        button_layout.addWidget(close_btn)
+        
+        layout.addLayout(button_layout)
+        
+        dialog.exec()
+    
+    def show_history_context_menu(self, list_widget, position):
+        """履歴リストの右クリックメニュー"""
+        item = list_widget.itemAt(position)
+        if not item or not item.data(Qt.UserRole):
+            return
+        
+        menu = QMenu(self)
+        
+        select_action = QAction("選択", self)
+        copy_id_action = QAction("IDをコピー", self)
+        copy_url_action = QAction("URLをコピー", self)
+        edit_action = QAction("編集", self)
+        delete_action = QAction("履歴から削除", self)
+        
+        page_info = item.data(Qt.UserRole)
+        
+        select_action.triggered.connect(lambda: self.page_id_input.setText(page_info["id"]))
+        copy_id_action.triggered.connect(lambda: self.copy_to_clipboard(page_info["id"], "ページID"))
+        copy_url_action.triggered.connect(lambda: self.copy_to_clipboard(page_info["url"], "URL"))
+        edit_action.triggered.connect(lambda: self.edit_page_from_history(page_info))
+        delete_action.triggered.connect(lambda: self.delete_from_history(page_info["id"], list_widget))
+        
+        menu.addAction(select_action)
+        menu.addSeparator()
+        menu.addAction(copy_id_action)
+        menu.addAction(copy_url_action)
+        menu.addSeparator()
+        menu.addAction(edit_action)
+        menu.addAction(delete_action)
+        
+        menu.exec(list_widget.mapToGlobal(position))
+    
+    def copy_to_clipboard(self, text, label):
+        """テキストをクリップボードにコピー"""
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
+        self.status_bar.showMessage(f"{label}をクリップボードにコピーしました", 2000)
+    
+    def delete_from_history(self, page_id, list_widget):
+        """履歴から項目を削除"""
+        reply = QMessageBox.question(
+            self, "確認", "この項目を履歴から削除しますか？",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            self.settings.remove_page_from_history(page_id)
+            # リストウィジェットを更新
+            for i in range(list_widget.count()):
+                item = list_widget.item(i)
+                if item.data(Qt.UserRole) and item.data(Qt.UserRole)["id"] == page_id:
+                    list_widget.takeItem(i)
+                    break
+            self.status_bar.showMessage("履歴から削除しました", 2000)
+    
+    def edit_page_from_history(self, page_info):
+        """履歴からページを編集"""
+        self.page_id_input.setText(page_info["id"])
+        self.edit_current_page()
+    
+    def edit_current_page(self):
+        """現在のページを編集（NotionのWebページを開く）"""
+        page_id = self.page_id_input.text().strip()
+        if not page_id:
+            QMessageBox.warning(self, "警告", "ページIDを入力してください。")
+            return
+        
+        if not self.notion_client:
+            QMessageBox.warning(self, "警告", "まずNotion APIに接続してください。")
+            return
+        
+        try:
+            # ページ情報を取得してURLを取得
+            page_info = self.notion_client.get_page_info(page_id)
+            if page_info and page_info.get("url"):
+                webbrowser.open(page_info["url"])
+                self.status_bar.showMessage("Notionページを開きました", 2000)
+            else:
+                QMessageBox.warning(self, "エラー", "ページのURLを取得できませんでした。")
+        except Exception as e:
+            logger.error(f"ページ編集エラー: {e}")
+            QMessageBox.critical(self, "エラー", f"ページを開くことができませんでした: {e}")
     
     def fetch_data(self):
         """データ取得"""
@@ -945,6 +1177,7 @@ class MainWindow(QMainWindow):
             if self.gemini_client and self.gemini_client.is_connected:
                 self.analyze_btn.setEnabled(True)
                 self.auto_insights_btn.setEnabled(True)
+                self.infographic_btn.setEnabled(True)
             
             # 完了時のプログレス
             update_progress("データ取得完了", 100)
@@ -1106,9 +1339,12 @@ class MainWindow(QMainWindow):
             if result:
                 self.analysis_result.setText(result)
                 self.status_bar.showMessage("AI分析完了")
+                # 分析結果ダウンロードボタンを有効化
+                self.download_analysis_btn.setEnabled(True)
             else:
                 self.analysis_result.setText("分析に失敗しました。")
                 self.status_bar.showMessage("AI分析失敗")
+                self.download_analysis_btn.setEnabled(False)
             
             # 少し待ってからプログレスバーを非表示
             QTimer.singleShot(500, lambda: self.analysis_progress_bar.setVisible(False))
@@ -1121,6 +1357,7 @@ class MainWindow(QMainWindow):
             
             self.analysis_result.setText(f"分析中にエラーが発生しました: {e}")
             QMessageBox.critical(self, "エラー", f"AI分析に失敗しました: {e}")
+            self.download_analysis_btn.setEnabled(False)
         finally:
             # 最終的にUIを復元
             self.analyze_btn.setEnabled(True)
@@ -1189,9 +1426,12 @@ class MainWindow(QMainWindow):
             if result:
                 self.analysis_result.setText(result)
                 self.status_bar.showMessage("自動洞察生成完了")
+                # 分析結果ダウンロードボタンを有効化
+                self.download_analysis_btn.setEnabled(True)
             else:
                 self.analysis_result.setText("洞察生成に失敗しました。")
                 self.status_bar.showMessage("自動洞察生成失敗")
+                self.download_analysis_btn.setEnabled(False)
             
             # 少し待ってからプログレスバーを非表示
             QTimer.singleShot(500, lambda: self.analysis_progress_bar.setVisible(False))
@@ -1204,8 +1444,202 @@ class MainWindow(QMainWindow):
             
             self.analysis_result.setText(f"洞察生成中にエラーが発生しました: {e}")
             QMessageBox.critical(self, "エラー", f"自動洞察生成に失敗しました: {e}")
+            self.download_analysis_btn.setEnabled(False)
         finally:
             # 最終的にUIを復元
             self.analyze_btn.setEnabled(True)
             self.auto_insights_btn.setEnabled(True)
-            QApplication.processEvents() 
+            QApplication.processEvents()
+
+    def create_infographic(self):
+        """インフォグラフィック化"""
+        if not self.gemini_client or not self.gemini_client.is_connected:
+            QMessageBox.warning(self, "警告", "まずGemini APIに接続してください。")
+            return
+        
+        if self.current_data is None or self.current_data.empty:
+            QMessageBox.warning(self, "警告", "分析するデータがありません。")
+            return
+        
+        # プログレス管理用の変数
+        self.current_progress = 0
+        
+        def update_progress(message, progress_value=None):
+            """プログレス更新用コールバック"""
+            if progress_value is not None:
+                self.current_progress = progress_value
+                self.analysis_progress_bar.setValue(self.current_progress)
+            
+            self.status_bar.showMessage(message)
+            QApplication.processEvents()
+        
+        try:
+            # UIを即座に更新
+            self.analysis_progress_bar.setVisible(True)
+            self.analysis_progress_bar.setRange(0, 100)  # 0-100%のプログレスバー
+            self.analysis_progress_bar.setValue(0)
+            self.analyze_btn.setEnabled(False)
+            self.auto_insights_btn.setEnabled(False)
+            self.infographic_btn.setEnabled(False)
+            
+            update_progress("インフォグラフィック化を開始中...", 10)
+            
+            # プログレス更新のカスタムコールバック
+            def gemini_progress_callback(message):
+                if "データ概要を生成中" in message:
+                    update_progress(message, 25)
+                elif "インフォグラフィック用データを準備中" in message:
+                    update_progress(message, 40)
+                elif "HTMLインフォグラフィックを生成中" in message:
+                    update_progress(message, 60)
+                elif "Gemini AIでHTMLを生成中" in message:
+                    update_progress(message, 80)
+                else:
+                    update_progress(message)
+            
+            # Gemini APIでHTMLインフォグラフィック生成（プログレス更新付き）
+            html_content = self.gemini_client.create_infographic_html(
+                self.current_data,
+                progress_callback=gemini_progress_callback
+            )
+            
+            # 完了時のプログレス
+            update_progress("インフォグラフィック生成完了", 95)
+            
+            # プログレスバーを非表示にしてから結果表示
+            self.analysis_progress_bar.setValue(100)
+            QApplication.processEvents()
+            
+            if html_content:
+                # HTMLコンテンツを保存（クラス変数として）
+                self.current_html_content = html_content
+                
+                # 結果表示エリアに成功メッセージを表示
+                self.analysis_result.setText("📊 HTMLインフォグラフィックが生成されました！\n\n「📄 HTMLダウンロード」ボタンをクリックして保存してください。")
+                self.status_bar.showMessage("インフォグラフィック生成完了")
+                
+                # HTMLダウンロードボタンを有効化
+                self.download_html_btn.setEnabled(True)
+                
+                QMessageBox.information(self, "成功", "HTMLインフォグラフィックが生成されました！\n「📄 HTMLダウンロード」ボタンから保存できます。")
+            else:
+                self.analysis_result.setText("インフォグラフィック生成に失敗しました。")
+                self.status_bar.showMessage("インフォグラフィック生成失敗")
+            
+            # 少し待ってからプログレスバーを非表示
+            QTimer.singleShot(500, lambda: self.analysis_progress_bar.setVisible(False))
+                
+        except Exception as e:
+            logger.error(f"インフォグラフィック生成エラー: {e}")
+            # エラー時もプログレスバーを非表示
+            self.analysis_progress_bar.setVisible(False)
+            QApplication.processEvents()
+            
+            self.analysis_result.setText(f"インフォグラフィック生成中にエラーが発生しました: {e}")
+            QMessageBox.critical(self, "エラー", f"インフォグラフィック生成に失敗しました: {e}")
+        finally:
+            # 最終的にUIを復元
+            self.analyze_btn.setEnabled(True)
+            self.auto_insights_btn.setEnabled(True)
+            self.infographic_btn.setEnabled(True)
+            QApplication.processEvents()
+    
+    def download_analysis_result(self):
+        """分析結果をダウンロード"""
+        analysis_text = self.analysis_result.toPlainText().strip()
+        
+        if not analysis_text or analysis_text in ["", "分析に失敗しました。", "洞察生成に失敗しました。"]:
+            QMessageBox.warning(self, "警告", "ダウンロードする分析結果がありません。")
+            return
+        
+        try:
+            # ファイル保存ダイアログを表示（テキストとMarkdownの両方をサポート）
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, 
+                "分析結果を保存", 
+                "analysis_result.txt", 
+                "Text files (*.txt);;Markdown files (*.md);;All files (*.*)"
+            )
+            
+            if file_path:
+                # 現在の日時を取得
+                from datetime import datetime
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # ヘッダー情報を追加
+                header = f"# Notion データ分析結果\n\n"
+                header += f"**生成日時**: {current_time}\n"
+                header += f"**データ行数**: {len(self.current_data) if self.current_data is not None else 0}\n"
+                header += f"**データ列数**: {len(self.current_data.columns) if self.current_data is not None else 0}\n\n"
+                header += "---\n\n"
+                
+                # ファイル拡張子に応じて内容を調整
+                if file_path.endswith('.md'):
+                    # Markdownファイルの場合、ヘッダーを追加
+                    content = header + analysis_text
+                else:
+                    # テキストファイルの場合、シンプルなヘッダー
+                    simple_header = f"Notion データ分析結果\n"
+                    simple_header += f"生成日時: {current_time}\n"
+                    simple_header += f"データ行数: {len(self.current_data) if self.current_data is not None else 0}\n"
+                    simple_header += f"データ列数: {len(self.current_data.columns) if self.current_data is not None else 0}\n\n"
+                    simple_header += "=" * 50 + "\n\n"
+                    content = simple_header + analysis_text
+                
+                # ファイルに保存
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                
+                self.status_bar.showMessage(f"分析結果を保存しました: {file_path}", 3000)
+                
+                QMessageBox.information(
+                    self, 
+                    "保存完了", 
+                    f"分析結果を保存しました:\n{file_path}"
+                )
+                
+        except Exception as e:
+            logger.error(f"分析結果ダウンロードエラー: {e}")
+            QMessageBox.critical(self, "エラー", f"分析結果の保存に失敗しました: {e}")
+            self.status_bar.showMessage("分析結果ダウンロード失敗")
+    
+    def download_html_infographic(self):
+        """HTMLインフォグラフィックをダウンロード"""
+        if not hasattr(self, 'current_html_content') or not self.current_html_content:
+            QMessageBox.warning(self, "警告", "まずインフォグラフィックを生成してください。")
+            return
+        
+        try:
+            # ファイル保存ダイアログを表示
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, 
+                "HTMLインフォグラフィックを保存", 
+                "notion_infographic.html", 
+                "HTML files (*.html)"
+            )
+            
+            if file_path:
+                # HTMLファイルに保存
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(self.current_html_content)
+                
+                self.status_bar.showMessage(f"HTMLファイルを保存しました: {file_path}", 3000)
+                
+                # ブラウザで開くかユーザーに確認
+                reply = QMessageBox.question(
+                    self, 
+                    "保存完了", 
+                    f"HTMLファイルを保存しました:\n{file_path}\n\nブラウザで開きますか？",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes
+                )
+                
+                if reply == QMessageBox.Yes:
+                    import webbrowser
+                    webbrowser.open(f"file://{file_path}")
+                    self.status_bar.showMessage("ブラウザでHTMLを開きました", 2000)
+                
+        except Exception as e:
+            logger.error(f"HTMLダウンロードエラー: {e}")
+            QMessageBox.critical(self, "エラー", f"HTMLファイルの保存に失敗しました: {e}")
+            self.status_bar.showMessage("HTMLダウンロード失敗") 

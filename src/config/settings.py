@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from pathlib import Path
 from cryptography.fernet import Fernet
 import logging
@@ -43,7 +44,8 @@ class Settings:
         default_config = {
             "notion": {
                 "token": "",
-                "last_page_id": ""
+                "last_page_id": "",
+                "page_history": []
             },
             "gemini": {
                 "api_key": ""
@@ -55,7 +57,8 @@ class Settings:
             },
             "data": {
                 "cache_enabled": True,
-                "max_cache_size": 100
+                "max_cache_size": 100,
+                "max_history_size": 20
             }
         }
         
@@ -65,7 +68,12 @@ class Settings:
         
         try:
             with open(self.config_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                config = json.load(f)
+                if "page_history" not in config.get("notion", {}):
+                    config["notion"]["page_history"] = []
+                if "max_history_size" not in config.get("data", {}):
+                    config["data"]["max_history_size"] = 20
+                return config
         except (json.JSONDecodeError, FileNotFoundError):
             self._save_config(default_config)
             return default_config
@@ -147,4 +155,45 @@ class Settings:
         if "ui" not in self.config:
             self.config["ui"] = {}
         self.config["ui"][key] = value
+        self._save_config(self.config)
+    
+    def get_page_history(self):
+        """ページ履歴の取得"""
+        return self.config.get("notion", {}).get("page_history", [])
+    
+    def add_page_to_history(self, page_info):
+        """ページを履歴に追加"""
+        history = self.get_page_history()
+        max_size = self.config.get("data", {}).get("max_history_size", 20)
+        
+        history = [item for item in history if item.get("id") != page_info.get("id")]
+        
+        page_entry = {
+            "id": page_info.get("id", ""),
+            "title": page_info.get("title", "無題"),
+            "type": page_info.get("type", "unknown"),
+            "url": page_info.get("url", ""),
+            "last_accessed": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "created_time": page_info.get("created_time", ""),
+            "last_edited_time": page_info.get("last_edited_time", "")
+        }
+        
+        history.insert(0, page_entry)
+        
+        if len(history) > max_size:
+            history = history[:max_size]
+        
+        self.config["notion"]["page_history"] = history
+        self._save_config(self.config)
+    
+    def remove_page_from_history(self, page_id):
+        """ページを履歴から削除"""
+        history = self.get_page_history()
+        history = [item for item in history if item.get("id") != page_id]
+        self.config["notion"]["page_history"] = history
+        self._save_config(self.config)
+    
+    def clear_page_history(self):
+        """ページ履歴をクリア"""
+        self.config["notion"]["page_history"] = []
         self._save_config(self.config) 

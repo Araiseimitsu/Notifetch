@@ -28,8 +28,8 @@ class GeminiClient:
         try:
             genai.configure(api_key=self.api_key)
             # 最新のGeminiモデルを使用
-            # self.model = genai.GenerativeModel('gemini-2.0-flash-lite')
-            self.model = genai.GenerativeModel('gemma-3n-e4b-it')
+            self.model = genai.GenerativeModel('gemini-2.0-flash-lite')
+            # self.model = genai.GenerativeModel('gemma-3n-e4b-it')
             self.is_connected = True
             logger.info("Gemini APIクライアントが初期化されました")
         except Exception as e:
@@ -83,17 +83,36 @@ class GeminiClient:
             
             # プログレス更新
             if progress_callback:
-                progress_callback("サンプルデータを準備中...")
+                progress_callback("分析データを準備中...")
             
-            # データのサンプルを取得（最初の10行）
-            sample_data = dataframe.head(10).to_string()
+            # データ量に応じてサンプル数を決定
+            total_rows = len(dataframe)
+            if total_rows <= 100:
+                # 100行以下の場合は全データを送信
+                sample_data = dataframe.to_string()
+                data_description = f"全データ（{total_rows}行）"
+            elif total_rows <= 1000:
+                # 1000行以下の場合は最初の100行を送信
+                sample_data = dataframe.head(100).to_string()
+                data_description = f"データサンプル（最初の100行、全{total_rows}行）"
+            else:
+                # 1000行を超える場合は最初の200行を送信
+                sample_data = dataframe.head(200).to_string()
+                data_description = f"データサンプル（最初の200行、全{total_rows}行）"
             
             # プログレス更新
             if progress_callback:
-                progress_callback("分析プロンプトを構築中...")
+                progress_callback("ユーザープロンプトを適用中...")
             
-            # プロンプトを構築
-            prompt = self._build_analysis_prompt(data_summary, sample_data, analysis_request)
+            # ユーザーのプロンプトをそのまま使用し、データ情報は参考として提供
+            prompt = f"""以下はNotionから取得したデータです。
+
+{data_summary}
+
+{data_description}:
+{sample_data}
+
+{analysis_request}"""
             
             # プログレス更新
             if progress_callback:
@@ -121,55 +140,72 @@ class GeminiClient:
         """
         summary = f"""
 データ概要:
-- 行数: {len(dataframe)}
+- 行数: {len(dataframe):,}
 - 列数: {len(dataframe.columns)}
 - 列名: {', '.join(dataframe.columns.tolist())}
+- データサイズ: {dataframe.memory_usage(deep=True).sum() / 1024:.1f} KB
 
-各列の情報:
-"""
+各列の詳細情報:"""
         
         for column in dataframe.columns:
             col_data = dataframe[column]
-            summary += f"- {column}: "
-            summary += f"データ型={col_data.dtype}, "
-            summary += f"非NULL値={col_data.count()}, "
-            summary += f"ユニーク値数={col_data.nunique()}\n"
+            summary += f"\n- {column}:"
+            summary += f"\n  - データ型: {col_data.dtype}"
+            summary += f"\n  - 非NULL値: {col_data.count():,}/{len(dataframe):,} ({col_data.count()/len(dataframe)*100:.1f}%)"
+            summary += f"\n  - ユニーク値数: {col_data.nunique():,}"
+            
+            # 数値列の場合は基本統計量を追加
+            if col_data.dtype in ['int64', 'float64', 'int32', 'float32']:
+                try:
+                    stats = col_data.describe()
+                    summary += f"\n  - 統計量: 平均={stats['mean']:.2f}, 中央値={stats['50%']:.2f}, 標準偏差={stats['std']:.2f}"
+                    summary += f"\n  - 範囲: 最小値={stats['min']:.2f}, 最大値={stats['max']:.2f}"
+                except:
+                    pass
+            
+            # 欠損値の情報
+            null_count = col_data.isnull().sum()
+            if null_count > 0:
+                summary += f"\n  - 欠損値: {null_count:,}個 ({null_count/len(dataframe)*100:.1f}%)"
         
+        summary += "\n"
         return summary
     
-    def _build_analysis_prompt(self, data_summary: str, sample_data: str, analysis_request: str) -> str:
-        """
-        分析用プロンプトを構築
-        
-        Args:
-            data_summary: データ概要
-            sample_data: サンプルデータ
-            analysis_request: 分析指示
-            
-        Returns:
-            str: 構築されたプロンプト
-        """
-        prompt = f"""
-あなたはデータ分析の専門家です。以下のNotionから取得したデータを分析してください。
-
-{data_summary}
-
-データサンプル（最初の10行）:
-{sample_data}
-
-分析指示:
-{analysis_request}
-
-以下の点を考慮して分析してください:
-1. データの傾向やパターンを特定する
-2. 重要な洞察や発見を明確に示す
-3. 可能であれば具体的な数値や例を示す
-4. 日本語で分かりやすく回答する
-5. 必要に応じて改善提案も含める
-
-分析結果:
-"""
-        return prompt
+    # def _build_analysis_prompt(self, data_summary: str, sample_data: str, analysis_request: str) -> str:
+    #     """
+    #     分析用プロンプトを構築（非使用）
+    #     
+    #     Args:
+    #         data_summary: データ概要
+    #         sample_data: サンプルデータ
+    #         analysis_request: 分析指示
+    #         
+    #     Returns:
+    #         str: 構築されたプロンプト
+    #     """
+    #     # このメソッドは使用されなくなりました
+    #     # ユーザー入力をそのまま適用するためanalyze_dataメソッドで直接プロンプトを構築
+    #     prompt = f"""
+    # あなたはデータ分析の専門家です。以下のNotionから取得したデータを分析してください。
+    # 
+    # {data_summary}
+    # 
+    # データサンプル（最初の10行）:
+    # {sample_data}
+    # 
+    # 分析指示:
+    # {analysis_request}
+    # 
+    # 以下の点を考慮して分析してください:
+    # 1. データの傾向やパターンを特定する
+    # 2. 重要な洞察や発見を明確に示す
+    # 3. 可能であれば具体的な数値や例を示す
+    # 4. 日本語で分かりやすく回答する
+    # 5. 必要に応じて改善提案も含める
+    # 
+    # 分析結果:
+    # """
+    #     return prompt
     
     def generate_insights(self, dataframe: pd.DataFrame, progress_callback=None) -> Optional[str]:
         """
@@ -195,9 +231,22 @@ class GeminiClient:
             
             # プログレス更新
             if progress_callback:
-                progress_callback("サンプルデータを準備中...")
+                progress_callback("洞察分析データを準備中...")
             
-            sample_data = dataframe.head(10).to_string()
+            # データ量に応じてサンプル数を決定
+            total_rows = len(dataframe)
+            if total_rows <= 100:
+                # 100行以下の場合は全データを送信
+                sample_data = dataframe.to_string()
+                data_description = f"全データ（{total_rows}行）"
+            elif total_rows <= 1000:
+                # 1000行以下の場合は最初の100行を送信
+                sample_data = dataframe.head(100).to_string()
+                data_description = f"データサンプル（最初の100行、全{total_rows}行）"
+            else:
+                # 1000行を超える場合は最初の200行を送信
+                sample_data = dataframe.head(200).to_string()
+                data_description = f"データサンプル（最初の200行、全{total_rows}行）"
             
             # プログレス更新
             if progress_callback:
@@ -208,7 +257,7 @@ class GeminiClient:
 
 {data_summary}
 
-データサンプル:
+{data_description}:
 {sample_data}
 
 以下の観点から分析してください:
@@ -231,4 +280,97 @@ class GeminiClient:
             
         except Exception as e:
             logger.error(f"自動洞察生成エラー: {e}")
-            return f"洞察生成中にエラーが発生しました: {e}" 
+            return f"洞察生成中にエラーが発生しました: {e}"
+    
+    def create_infographic_html(self, dataframe: pd.DataFrame, user_prompt: str = "", progress_callback=None) -> Optional[str]:
+        """
+        データからHTMLインフォグラフィックを生成
+        
+        Args:
+            dataframe: 分析対象のDataFrame
+            user_prompt: ユーザーからの特別な指示（オプション）
+            progress_callback: プログレス更新用コールバック関数
+            
+        Returns:
+            str: 生成されたHTMLコンテンツ
+        """
+        if not self.model:
+            logger.error("Gemini APIクライアントが初期化されていません")
+            return None
+        
+        try:
+            # プログレス更新
+            if progress_callback:
+                progress_callback("データ概要を生成中...")
+            
+            data_summary = self._generate_data_summary(dataframe)
+            
+            # プログレス更新
+            if progress_callback:
+                progress_callback("インフォグラフィック用データを準備中...")
+            
+            # 適応的データサンプリング
+            total_rows = len(dataframe)
+            if total_rows <= 50:
+                # 50行以下の場合は全データを送信
+                sample_data = dataframe.to_string()
+                data_description = f"全データ（{total_rows}行）"
+            elif total_rows <= 200:
+                # 200行以下の場合は最初の50行を送信
+                sample_data = dataframe.head(50).to_string()
+                data_description = f"データサンプル（最初の50行、全{total_rows}行）"
+            else:
+                # 200行を超える場合は最初の100行を送信
+                sample_data = dataframe.head(100).to_string()
+                data_description = f"データサンプル（最初の100行、全{total_rows}行）"
+            
+            # プログレス更新
+            if progress_callback:
+                progress_callback("HTMLインフォグラフィックを生成中...")
+            
+            # インフォグラフィック生成用プロンプト
+            prompt = f"""
+以下のNotionデータをもとに、美しいHTMLインフォグラフィックを作成してください。
+
+{data_summary}
+
+{data_description}:
+{sample_data}
+
+{f"特別な指示: {user_prompt}" if user_prompt else ""}
+
+以下の要件でHTMLを生成してください:
+
+1. **完全なHTMLドキュメント**: <!DOCTYPE html>から</html>まで
+2. **レスポンシブデザイン**: モバイルとデスクトップに対応
+3. **モダンなCSS**: Flexbox/Grid、グラデーション、シャドウ
+4. **美しいカラーパレット**: プロフェッショナルな色使い
+5. **カードレイアウト**: 重要な統計情報をカード形式で表示
+6. **データ可視化**: 簡単なチャート（CSS/HTMLのみ）
+7. **印刷対応**: @media print スタイル
+8. **日本語対応**: 美しい日本語フォント
+
+HTMLの構成:
+- ヘッダー: タイトルと概要
+- 主要統計カード: 重要な数値を大きく表示
+- データ洞察セクション: 分析結果を視覚的に
+- チャート/グラフ: データの傾向を表示
+- フッター: 生成日時
+
+CSS は <style> タグ内に埋め込み、JavaScript が必要な場合は <script> タグ内に記述してください。
+外部ライブラリは使用せず、純粋なHTML/CSS/JavaScriptのみで実装してください。
+
+完全なHTMLコードのみを返してください（説明文は不要）。
+"""
+            
+            # プログレス更新
+            if progress_callback:
+                progress_callback("Gemini AIでHTMLを生成中...")
+            
+            response = self.model.generate_content(prompt)
+            logger.info("HTMLインフォグラフィック生成が完了しました")
+            return response.text
+            
+        except Exception as e:
+            logger.error(f"HTMLインフォグラフィック生成エラー: {e}")
+            return f"HTMLインフォグラフィック生成中にエラーが発生しました: {e}" 
