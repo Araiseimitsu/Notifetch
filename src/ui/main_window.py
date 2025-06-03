@@ -130,6 +130,30 @@ class MainWindow(QMainWindow):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         
+        # データ取得設定グループ
+        fetch_settings_group = QGroupBox("データ取得設定")
+        fetch_settings_layout = QFormLayout(fetch_settings_group)
+        
+        # 取得行数指定
+        self.fetch_limit_combo = QComboBox()
+        self.fetch_limit_combo.addItems([
+            "すべて",
+            "100行",
+            "500行", 
+            "1000行",
+            "2000行",
+            "5000行",
+            "カスタム"
+        ])
+        self.fetch_limit_combo.currentTextChanged.connect(self.on_fetch_limit_changed)
+        fetch_settings_layout.addRow("取得行数:", self.fetch_limit_combo)
+        
+        # カスタム行数入力（初期は非表示）
+        self.custom_limit_input = QLineEdit()
+        self.custom_limit_input.setPlaceholderText("カスタム行数を入力 (例: 10000)")
+        self.custom_limit_input.setVisible(False)
+        fetch_settings_layout.addRow("カスタム行数:", self.custom_limit_input)
+        
         # 取得ボタン
         button_layout = QHBoxLayout()
         self.fetch_data_btn = QPushButton("データ取得開始")
@@ -165,6 +189,7 @@ class MainWindow(QMainWindow):
         self.data_summary_text.setReadOnly(True)
         
         # レイアウトに追加
+        layout.addWidget(fetch_settings_group)
         layout.addLayout(button_layout)
         layout.addWidget(self.progress_bar)
         layout.addWidget(QLabel("データプレビュー:"))
@@ -1086,6 +1111,30 @@ class MainWindow(QMainWindow):
             logger.error(f"ページ編集エラー: {e}")
             QMessageBox.critical(self, "エラー", f"ページを開くことができませんでした: {e}")
     
+    def on_fetch_limit_changed(self, text):
+        """取得行数選択変更時の処理"""
+        if text == "カスタム":
+            self.custom_limit_input.setVisible(True)
+        else:
+            self.custom_limit_input.setVisible(False)
+    
+    def get_fetch_limit(self):
+        """設定された取得行数を取得"""
+        limit_text = self.fetch_limit_combo.currentText()
+        
+        if limit_text == "すべて":
+            return None  # 制限なし
+        elif limit_text == "カスタム":
+            try:
+                custom_limit = int(self.custom_limit_input.text().strip())
+                return max(1, custom_limit)  # 最低1行
+            except (ValueError, AttributeError):
+                QMessageBox.warning(self, "警告", "有効な数値を入力してください。")
+                return None
+        else:
+            # "100行" -> 100 のように変換
+            return int(limit_text.replace("行", ""))
+    
     def fetch_data(self):
         """データ取得"""
         page_id = self.page_id_input.text().strip()
@@ -1096,6 +1145,11 @@ class MainWindow(QMainWindow):
         if not self.notion_client:
             QMessageBox.warning(self, "警告", "まずNotion APIに接続してください。")
             return
+        
+        # 取得行数制限を取得
+        fetch_limit = self.get_fetch_limit()
+        if fetch_limit is None and self.fetch_limit_combo.currentText() == "カスタム":
+            return  # カスタムで無効な値の場合は処理を中断
         
         # プログレス管理用の変数
         self.current_progress = 0
@@ -1136,7 +1190,8 @@ class MainWindow(QMainWindow):
                 
                 raw_data = self.notion_client.get_database_data(
                     page_id, 
-                    progress_callback=notion_progress_callback
+                    progress_callback=notion_progress_callback,
+                    limit=fetch_limit
                 )
                 
                 update_progress("データベースデータを変換中...", 75)
@@ -1162,6 +1217,10 @@ class MainWindow(QMainWindow):
                 update_progress("ページデータを変換中...", 75)
                 
                 self.current_data = DataConverter.convert_blocks_to_dataframe(raw_data)
+                
+                # ページの場合は後で行数制限を適用
+                if fetch_limit is not None:
+                    self.current_data = self.current_data.head(fetch_limit)
             
             # データ表示処理
             update_progress("データを表示中...", 85)
@@ -1182,10 +1241,14 @@ class MainWindow(QMainWindow):
             # 完了時のプログレス
             update_progress("データ取得完了", 100)
             
+            # 成功メッセージに取得行数情報を追加
+            data_count = len(self.current_data)
+            limit_info = f" (制限: {fetch_limit}行)" if fetch_limit else ""
+            
             # 少し待ってからプログレスバーを非表示にして成功メッセージを表示
             QTimer.singleShot(500, lambda: [
                 self.progress_bar.setVisible(False),
-                QMessageBox.information(self, "成功", f"{len(self.current_data)} 件のデータを取得しました。")
+                QMessageBox.information(self, "成功", f"{data_count} 件のデータを取得しました。{limit_info}")
             ])
             
         except Exception as e:

@@ -76,47 +76,29 @@ class GeminiClient:
         try:
             # プログレス更新
             if progress_callback:
-                progress_callback("データ概要を生成中...")
-            
-            # DataFrameの概要を取得
-            data_summary = self._generate_data_summary(dataframe)
-            
-            # プログレス更新
-            if progress_callback:
-                progress_callback("分析データを準備中...")
+                progress_callback("データを準備中...")
             
             # データ量に応じてサンプル数を決定
             total_rows = len(dataframe)
             if total_rows <= 100:
                 # 100行以下の場合は全データを送信
                 sample_data = dataframe.to_string()
-                data_description = f"全データ（{total_rows}行）"
             elif total_rows <= 1000:
                 # 1000行以下の場合は最初の100行を送信
                 sample_data = dataframe.head(100).to_string()
-                data_description = f"データサンプル（最初の100行、全{total_rows}行）"
             else:
                 # 1000行を超える場合は最初の200行を送信
                 sample_data = dataframe.head(200).to_string()
-                data_description = f"データサンプル（最初の200行、全{total_rows}行）"
             
             # プログレス更新
             if progress_callback:
-                progress_callback("ユーザープロンプトを適用中...")
+                progress_callback("AI分析を実行中...")
             
-            # ユーザーのプロンプトをそのまま使用し、データ情報は参考として提供
-            prompt = f"""以下はNotionから取得したデータです。
+            # 極限までシンプルに：ユーザーの質問とデータのみ
+            prompt = f"""{analysis_request}
 
-{data_summary}
-
-{data_description}:
-{sample_data}
-
-{analysis_request}"""
-            
-            # プログレス更新
-            if progress_callback:
-                progress_callback("Gemini AIで分析実行中...")
+データ:
+{sample_data}"""
             
             # Gemini APIに送信
             response = self.model.generate_content(prompt)
@@ -225,7 +207,7 @@ class GeminiClient:
         try:
             # プログレス更新
             if progress_callback:
-                progress_callback("データ概要を生成中...")
+                progress_callback("データを準備中...")
             
             data_summary = self._generate_data_summary(dataframe)
             
@@ -238,15 +220,15 @@ class GeminiClient:
             if total_rows <= 100:
                 # 100行以下の場合は全データを送信
                 sample_data = dataframe.to_string()
-                data_description = f"全データ（{total_rows}行）"
+                data_description = "データサンプル（全データ）"
             elif total_rows <= 1000:
                 # 1000行以下の場合は最初の100行を送信
                 sample_data = dataframe.head(100).to_string()
-                data_description = f"データサンプル（最初の100行、全{total_rows}行）"
+                data_description = "データサンプル（最初の100行）"
             else:
                 # 1000行を超える場合は最初の200行を送信
                 sample_data = dataframe.head(200).to_string()
-                data_description = f"データサンプル（最初の200行、全{total_rows}行）"
+                data_description = "データサンプル（最初の200行）"
             
             # プログレス更新
             if progress_callback:
@@ -301,7 +283,7 @@ class GeminiClient:
         try:
             # プログレス更新
             if progress_callback:
-                progress_callback("データ概要を生成中...")
+                progress_callback("データを準備中...")
             
             data_summary = self._generate_data_summary(dataframe)
             
@@ -314,15 +296,15 @@ class GeminiClient:
             if total_rows <= 50:
                 # 50行以下の場合は全データを送信
                 sample_data = dataframe.to_string()
-                data_description = f"全データ（{total_rows}行）"
+                data_description = "データサンプル（全データ）"
             elif total_rows <= 200:
                 # 200行以下の場合は最初の50行を送信
                 sample_data = dataframe.head(50).to_string()
-                data_description = f"データサンプル（最初の50行、全{total_rows}行）"
+                data_description = "データサンプル（最初の50行）"
             else:
                 # 200行を超える場合は最初の100行を送信
                 sample_data = dataframe.head(100).to_string()
-                data_description = f"データサンプル（最初の100行、全{total_rows}行）"
+                data_description = "データサンプル（最初の100行）"
             
             # プログレス更新
             if progress_callback:
@@ -330,7 +312,7 @@ class GeminiClient:
             
             # インフォグラフィック生成用プロンプト
             prompt = f"""
-以下のNotionデータをもとに、美しいHTMLインフォグラフィックを作成してください。
+以下のデータをもとに、美しいHTMLインフォグラフィックを作成してください。
 
 {data_summary}
 

@@ -241,13 +241,14 @@ class NotionClient:
             logger.error(f"ページ情報取得エラー: {e}")
             return None
     
-    def get_database_data(self, database_id: str, page_size: int = 100, progress_callback=None) -> List[Dict[str, Any]]:
+    def get_database_data(self, database_id: str, page_size: int = 100, limit: int = None, progress_callback=None) -> List[Dict[str, Any]]:
         """
         データベースからデータを取得
         
         Args:
             database_id: データベースID
             page_size: 1回に取得するページ数
+            limit: 取得する最大行数（Noneの場合は制限なし）
             progress_callback: プログレス更新用コールバック関数
             
         Returns:
@@ -266,13 +267,25 @@ class NotionClient:
             
             while has_more:
                 page_count += 1
-                query_params = {"page_size": page_size}
+                
+                # 制限チェック：既に制限に達している場合は終了
+                if limit is not None and len(all_results) >= limit:
+                    break
+                
+                # 残り取得数に応じてpage_sizeを調整
+                current_page_size = page_size
+                if limit is not None:
+                    remaining = limit - len(all_results)
+                    current_page_size = min(page_size, remaining)
+                
+                query_params = {"page_size": current_page_size}
                 if start_cursor:
                     query_params["start_cursor"] = start_cursor
                 
                 # プログレス更新
                 if progress_callback:
-                    progress_callback(f"データ取得中... ({len(all_results)} 件取得済み)")
+                    limit_text = f"（上限: {limit}）" if limit else ""
+                    progress_callback(f"データ取得中... ({len(all_results)} 件取得済み){limit_text}")
                 
                 response = self.client.databases.query(
                     database_id=clean_database_id,
@@ -282,6 +295,11 @@ class NotionClient:
                 all_results.extend(response["results"])
                 has_more = response["has_more"]
                 start_cursor = response.get("next_cursor")
+                
+                # 制限チェック：制限に達した場合は終了
+                if limit is not None and len(all_results) >= limit:
+                    all_results = all_results[:limit]  # 正確に制限数まで切り詰める
+                    break
                 
                 # レート制限対策
                 time.sleep(0.1)
