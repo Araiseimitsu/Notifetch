@@ -179,6 +179,40 @@ class MainWindow(QMainWindow):
         # ウィンドウ設定
         self.setWindowTitle("NotiFetch - Notion データ取得・分析ツール")
         self.setMinimumSize(1200, 800)
+        
+        # ウィンドウアイコンの設定（タスクバー用）
+        try:
+            icon_path = Path(__file__).parent.parent.parent / "assets" / "logo.png"
+            
+            if icon_path.exists():
+                # 複数サイズでアイコンを作成
+                icon = QIcon()
+                # .pngファイルから複数サイズを読み込み
+                pixmap = QPixmap(str(icon_path))
+                if not pixmap.isNull():
+                    # 標準的なアイコンサイズで追加
+                    icon.addPixmap(pixmap.scaled(16, 16, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                    icon.addPixmap(pixmap.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                    icon.addPixmap(pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                    icon.addPixmap(pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                    icon.addPixmap(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                    
+                    # ウィンドウアイコンを設定
+                    self.setWindowIcon(icon)
+                    
+                    # アプリケーションアイコンも設定
+                    app = QApplication.instance()
+                    if app:
+                        app.setWindowIcon(icon)
+                        
+                    logger.info(f"ウィンドウアイコンを設定しました: {icon_path}")
+                else:
+                    logger.warning(f"アイコンファイルの読み込みに失敗: {icon_path}")
+            else:
+                logger.warning(f"アイコンファイルが見つかりません: {icon_path}")
+        except Exception as e:
+            logger.error(f"ウィンドウアイコン設定エラー: {e}")
+        
         # 起動時に画面を最大化
         self.showMaximized()
     
@@ -234,19 +268,91 @@ class MainWindow(QMainWindow):
         logo_frame = QFrame()
         logo_layout = QVBoxLayout(logo_frame)
         
-        logo_label = QLabel("📊 NotiFetch")
-        logo_label.setAlignment(Qt.AlignCenter)
-        logo_font = QFont()
-        logo_font.setPointSize(24)
-        logo_font.setBold(True)
-        logo_label.setFont(logo_font)
-        logo_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        # アイコンファイルからロゴ画像を作成
+        try:
+            icon_path = Path(__file__).parent.parent.parent / "assets" / "logo.png"
+            if icon_path.exists():
+                # QPixmapでアイコンを読み込み、高DPI対応で適切なサイズに調整
+                pixmap = QPixmap(str(icon_path))
+                if not pixmap.isNull():
+                    # 高DPI環境に対応したサイズ計算
+                    app = QApplication.instance()
+                    device_pixel_ratio = app.devicePixelRatio() if app else 1.0
+                    target_size = int(48 * device_pixel_ratio)  # より大きなサイズ
+                    
+                    # 高品質でスケール
+                    scaled_pixmap = pixmap.scaled(
+                        target_size, target_size, 
+                        Qt.KeepAspectRatio, 
+                        Qt.SmoothTransformation
+                    )
+                    scaled_pixmap.setDevicePixelRatio(device_pixel_ratio)
+                    
+                    # ロゴラベルを画像付きで作成
+                    logo_label = QLabel()
+                    logo_label.setPixmap(scaled_pixmap)
+                    logo_label.setAlignment(Qt.AlignCenter)
+                    logo_label.setFixedSize(48, 48)  # 固定サイズで表示
+                    
+                    # テキストラベルを別途作成
+                    logo_text = QLabel("NotiFetch")
+                    logo_font = QFont()
+                    logo_font.setPointSize(20)  # 少し小さく調整
+                    logo_font.setBold(True)
+                    logo_text.setFont(logo_font)
+                    logo_text.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+                    logo_text.setAlignment(Qt.AlignCenter)
+                    
+                    # 水平レイアウトでアイコンとテキストを並べる
+                    logo_container = QWidget()
+                    logo_container_layout = QHBoxLayout(logo_container)
+                    logo_container_layout.setContentsMargins(0, 0, 0, 0)
+                    logo_container_layout.setSpacing(12)
+                    logo_container_layout.addStretch()
+                    logo_container_layout.addWidget(logo_label)
+                    logo_container_layout.addWidget(logo_text)
+                    logo_container_layout.addStretch()
+                    
+                    logo_layout.addWidget(logo_container)
+                    logger.info(f"サイドバーロゴを設定しました: {icon_path}")
+                else:
+                    # フォールバック：絵文字版
+                    logger.warning(f"ロゴファイルの読み込みに失敗、絵文字版にフォールバック: {icon_path}")
+                    logo_label = QLabel("📊 NotiFetch")
+                    logo_label.setAlignment(Qt.AlignCenter)
+                    logo_font = QFont()
+                    logo_font.setPointSize(24)
+                    logo_font.setBold(True)
+                    logo_label.setFont(logo_font)
+                    logo_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+                    logo_layout.addWidget(logo_label)
+            else:
+                # フォールバック：絵文字版
+                logger.warning(f"ロゴファイルが見つかりません、絵文字版にフォールバック: {icon_path}")
+                logo_label = QLabel("📊 NotiFetch")
+                logo_label.setAlignment(Qt.AlignCenter)
+                logo_font = QFont()
+                logo_font.setPointSize(24)
+                logo_font.setBold(True)
+                logo_label.setFont(logo_font)
+                logo_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+                logo_layout.addWidget(logo_label)
+        except Exception as e:
+            logger.error(f"ロゴアイコン読み込みエラー: {e}")
+            # フォールバック：絵文字版
+            logo_label = QLabel("📊 NotiFetch")
+            logo_label.setAlignment(Qt.AlignCenter)
+            logo_font = QFont()
+            logo_font.setPointSize(24)
+            logo_font.setBold(True)
+            logo_label.setFont(logo_font)
+            logo_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+            logo_layout.addWidget(logo_label)
         
         subtitle_label = QLabel("Notion データ分析ツール")
         subtitle_label.setAlignment(Qt.AlignCenter)
         subtitle_label.setStyleSheet("color: #6c757d; font-size: 12px;")
         
-        logo_layout.addWidget(logo_label)
         logo_layout.addWidget(subtitle_label)
         sidebar_layout.addWidget(logo_frame)
         
@@ -1127,7 +1233,7 @@ class MainWindow(QMainWindow):
         <h3 style="color: #2c3e50;">NotiFetch v2.0</h3>
         <p style="color: #6c757d;">Notion データ取得・分析ツール</p>
         <br>
-        <p style="color: #6c757d;"><strong>開発者:</strong> A.T Team</p>
+        <p style="color: #6c757d;"><strong>開発者:</strong> A.T</p>
         <p style="color: #6c757d;"><strong>ライセンス:</strong> MIT License</p>
         <p style="color: #6c757d;"><strong>サポート:</strong> takada@araiseimitsu.onmicrosoft.com</p>
         """)

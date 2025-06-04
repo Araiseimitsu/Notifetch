@@ -18,6 +18,14 @@ if sys.platform.startswith('win'):
     os.environ.setdefault('QT_AUTO_SCREEN_SCALE_FACTOR', '1')
     os.environ.setdefault('QT_SCALE_FACTOR', '1')
     
+    # Windowsでのタスクバーアイコン設定のため
+    try:
+        import ctypes
+        # アプリケーションIDを設定（タスクバーアイコンのため）
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('NotiFetch.DataAnalysisTool.1.0')
+    except Exception:
+        pass  # Windows以外や設定失敗時は無視
+    
 # srcディレクトリをパスに追加
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -33,6 +41,23 @@ def setup_application():
     app.setApplicationName("NotiFetch")
     app.setApplicationVersion("1.0.0")
     app.setOrganizationName("NotiFetch")
+    
+    # アプリケーションアイコンの設定（最優先で実行）
+    try:
+        icon_path = Path(__file__).parent / "assets" / "logo.png"
+        
+        if icon_path.exists():
+            icon = QIcon(str(icon_path))
+            if not icon.isNull():
+                # アプリケーション全体のアイコンを設定
+                app.setWindowIcon(icon)
+                # デスクトップ環境によってはこれも必要
+                QApplication.setWindowIcon(icon)
+                print(f"アプリケーションアイコンを設定しました: {icon_path}")
+        else:
+            print(f"アイコンファイルが見つかりません: {icon_path}")
+    except Exception as e:
+        print(f"アイコン設定エラー: {e}")
     
     # 現代的なPySide6では高DPI対応は自動的に有効
     # 古いバージョンとの互換性のため、安全に設定を試行
