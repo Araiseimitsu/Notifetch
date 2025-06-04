@@ -1,12 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+block_cipher = None
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[
+        ('assets/logo.png', 'assets'),
+        ('assets/icon.ico', 'assets'),
+    ],
+    hiddenimports=[
+        'src.ui.main_window',
+        'src.config.settings',
+        'src.utils.resource_utils',
+        'src.core.notion_client',
+        'src.core.gemini_client',
+        'src.utils.data_converter',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -32,7 +43,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['C:\\Users\\seizo\\.cursor\\projects\\notifetch\\assets\\icon.ico'],
+    icon='assets/icon.ico',
 )
 coll = COLLECT(
     exe,
@@ -42,4 +53,4 @@ coll = COLLECT(
     upx=True,
     upx_exclude=[],
     name='NotiFetch',
-)
+) 

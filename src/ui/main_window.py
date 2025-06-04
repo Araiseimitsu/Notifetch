@@ -18,6 +18,7 @@ from ..config.settings import Settings
 from ..core.notion_client import NotionClient
 from ..core.gemini_client import GeminiClient
 from ..utils.data_converter import DataConverter
+from ..utils.resource_utils import get_icon_path, get_taskbar_icon_path
 
 logger = logging.getLogger(__name__)
 
@@ -182,34 +183,41 @@ class MainWindow(QMainWindow):
         
         # ウィンドウアイコンの設定（タスクバー用）
         try:
-            icon_path = Path(__file__).parent.parent.parent / "assets" / "logo.png"
+            # タスクバーと統一するため.icoファイルを使用
+            window_icon_path = get_taskbar_icon_path()
             
-            if icon_path.exists():
+            print(f"ウィンドウアイコンパス: {window_icon_path}")
+            print(f"ファイル存在確認: {window_icon_path.exists()}")
+            
+            if window_icon_path.exists():
                 # 複数サイズでアイコンを作成
-                icon = QIcon()
-                # .pngファイルから複数サイズを読み込み
-                pixmap = QPixmap(str(icon_path))
-                if not pixmap.isNull():
-                    # 標準的なアイコンサイズで追加
-                    icon.addPixmap(pixmap.scaled(16, 16, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                    icon.addPixmap(pixmap.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                    icon.addPixmap(pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                    icon.addPixmap(pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                    icon.addPixmap(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                icon = QIcon(str(window_icon_path))
+                if not icon.isNull():
+                    # .icoファイルの場合は既に複数サイズが含まれているが、
+                    # .pngの場合は手動で複数サイズを追加
+                    if str(window_icon_path).endswith('.png'):
+                        pixmap = QPixmap(str(window_icon_path))
+                        if not pixmap.isNull():
+                            # 標準的なアイコンサイズで追加
+                            icon.addPixmap(pixmap.scaled(16, 16, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                            icon.addPixmap(pixmap.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                            icon.addPixmap(pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                            icon.addPixmap(pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                            icon.addPixmap(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                     
                     # ウィンドウアイコンを設定
                     self.setWindowIcon(icon)
                     
-                    # アプリケーションアイコンも設定
+                    # アプリケーションアイコンも再設定（タスクバー統一のため）
                     app = QApplication.instance()
                     if app:
                         app.setWindowIcon(icon)
                         
-                    logger.info(f"ウィンドウアイコンを設定しました: {icon_path}")
+                    logger.info(f"ウィンドウアイコンを設定しました: {window_icon_path}")
                 else:
-                    logger.warning(f"アイコンファイルの読み込みに失敗: {icon_path}")
+                    logger.warning(f"アイコンファイルの読み込みに失敗: {window_icon_path}")
             else:
-                logger.warning(f"アイコンファイルが見つかりません: {icon_path}")
+                logger.warning(f"アイコンファイルが見つかりません: {window_icon_path}")
         except Exception as e:
             logger.error(f"ウィンドウアイコン設定エラー: {e}")
         
@@ -270,7 +278,9 @@ class MainWindow(QMainWindow):
         
         # アイコンファイルからロゴ画像を作成
         try:
-            icon_path = Path(__file__).parent.parent.parent / "assets" / "logo.png"
+            icon_path = get_icon_path()
+            print(f"サイドバーアイコンパス: {icon_path}")
+            
             if icon_path.exists():
                 # QPixmapでアイコンを読み込み、高DPI対応で適切なサイズに調整
                 pixmap = QPixmap(str(icon_path))
@@ -318,36 +328,15 @@ class MainWindow(QMainWindow):
                 else:
                     # フォールバック：絵文字版
                     logger.warning(f"ロゴファイルの読み込みに失敗、絵文字版にフォールバック: {icon_path}")
-                    logo_label = QLabel("📊 NotiFetch")
-                    logo_label.setAlignment(Qt.AlignCenter)
-                    logo_font = QFont()
-                    logo_font.setPointSize(24)
-                    logo_font.setBold(True)
-                    logo_label.setFont(logo_font)
-                    logo_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-                    logo_layout.addWidget(logo_label)
+                    self._create_fallback_logo(logo_layout)
             else:
                 # フォールバック：絵文字版
                 logger.warning(f"ロゴファイルが見つかりません、絵文字版にフォールバック: {icon_path}")
-                logo_label = QLabel("📊 NotiFetch")
-                logo_label.setAlignment(Qt.AlignCenter)
-                logo_font = QFont()
-                logo_font.setPointSize(24)
-                logo_font.setBold(True)
-                logo_label.setFont(logo_font)
-                logo_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-                logo_layout.addWidget(logo_label)
+                self._create_fallback_logo(logo_layout)
         except Exception as e:
             logger.error(f"ロゴアイコン読み込みエラー: {e}")
             # フォールバック：絵文字版
-            logo_label = QLabel("📊 NotiFetch")
-            logo_label.setAlignment(Qt.AlignCenter)
-            logo_font = QFont()
-            logo_font.setPointSize(24)
-            logo_font.setBold(True)
-            logo_label.setFont(logo_font)
-            logo_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-            logo_layout.addWidget(logo_label)
+            self._create_fallback_logo(logo_layout)
         
         subtitle_label = QLabel("Notion データ分析ツール")
         subtitle_label.setAlignment(Qt.AlignCenter)
@@ -388,6 +377,17 @@ class MainWindow(QMainWindow):
         
         # 最初のボタンを選択🤩
         self.nav_buttons[0].setChecked(True)
+    
+    def _create_fallback_logo(self, logo_layout):
+        """フォールバック用の絵文字ロゴを作成"""
+        logo_label = QLabel("📊 NotiFetch")
+        logo_label.setAlignment(Qt.AlignCenter)
+        logo_font = QFont()
+        logo_font.setPointSize(24)
+        logo_font.setBold(True)
+        logo_label.setFont(logo_font)
+        logo_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        logo_layout.addWidget(logo_label)
     
     def create_content_area(self):
         """コンテンツエリアの作成"""
