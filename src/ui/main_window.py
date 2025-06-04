@@ -566,10 +566,10 @@ class MainWindow(QMainWindow):
         stats_grid.setContentsMargins(0, 0, 0, 0)
         
         # 改良されたカード
-        self.rows_card = self.create_enhanced_stat_card("📊", "データ行数", "0", "#4a90e2", "取得されたデータの総行数")
-        self.columns_card = self.create_enhanced_stat_card("📋", "列数", "0", "#5cb85c", "データの列（フィールド）数")
-        self.size_card = self.create_enhanced_stat_card("💾", "データサイズ", "0 KB", "#f0ad4e", "メモリ使用量")
-        self.status_card = self.create_enhanced_stat_card("🎯", "ステータス", "待機中", "#d9534f", "現在の処理状況")
+        self.rows_card = self.create_enhanced_stat_card("📊", "データ行数", "0", "#4a90e2", "データなし｜待機中")
+        self.columns_card = self.create_enhanced_stat_card("📋", "列数", "0", "#5cb85c", "フィールド情報なし")
+        self.size_card = self.create_enhanced_stat_card("💾", "データサイズ", "0 KB", "#f0ad4e", "メモリ使用量なし")
+        self.status_card = self.create_enhanced_stat_card("🎯", "ステータス", "待機中", "#d9534f", "データ取得を開始してください")
         
         # 2x2グリッドに配置
         stats_grid.addWidget(self.rows_card, 0, 0)
@@ -826,8 +826,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(icon_label)
         layout.addWidget(text_widget)
         
-        # カスタム属性を追加
+        # カスタム属性を追加（desc_labelも追加）
         card.value_label = value_label
+        card.title_label = title_label
+        card.desc_label = desc_label
         card.color = color
         
         return card
@@ -1467,63 +1469,126 @@ class MainWindow(QMainWindow):
     
     def update_data_stats(self):
         """データ統計を更新"""
-        if self.current_data is not None and not self.current_data.empty:
-            rows = len(self.current_data)
-            cols = len(self.current_data.columns)
-            
-            # データサイズを計算（概算）
-            size_bytes = self.current_data.memory_usage(deep=True).sum()
-            if size_bytes < 1024:
-                size_str = f"{size_bytes} B"
-            elif size_bytes < 1024 * 1024:
-                size_str = f"{size_bytes / 1024:.1f} KB"
+        try:
+            if self.current_data is not None and not self.current_data.empty:
+                rows = len(self.current_data)
+                cols = len(self.current_data.columns)
+                
+                # データサイズを計算（概算）
+                try:
+                    size_bytes = self.current_data.memory_usage(deep=True).sum()
+                    if size_bytes < 1024:
+                        size_str = f"{size_bytes} B"
+                    elif size_bytes < 1024 * 1024:
+                        size_str = f"{size_bytes / 1024:.1f} KB"
+                    else:
+                        size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
+                except Exception as e:
+                    logger.warning(f"メモリ使用量計算エラー: {e}")
+                    size_str = "不明"
+                
+                # カードの存在確認と更新
+                if hasattr(self, 'rows_card') and hasattr(self.rows_card, 'value_label'):
+                    self.rows_card.value_label.setText(f"{rows:,}")
+                    # 3行目：データタイプと範囲情報
+                    if hasattr(self.rows_card, 'desc_label'):
+                        non_null_percentage = ((self.current_data.count().sum() / (rows * cols)) * 100) if rows > 0 and cols > 0 else 0
+                        self.rows_card.desc_label.setText(f"データ完全性: {non_null_percentage:.1f}% | インデックス: 0-{rows-1}")
+                
+                if hasattr(self, 'columns_card') and hasattr(self.columns_card, 'value_label'):
+                    self.columns_card.value_label.setText(str(cols))
+                    # 3行目：列のデータタイプ情報
+                    if hasattr(self.columns_card, 'desc_label') and cols > 0:
+                        dtypes_info = self.current_data.dtypes.value_counts()
+                        main_types = []
+                        for dtype, count in dtypes_info.head(2).items():
+                            dtype_name = str(dtype).replace('object', 'テキスト').replace('int64', '整数').replace('float64', '小数')
+                            main_types.append(f"{dtype_name}:{count}")
+                        self.columns_card.desc_label.setText(f"主なタイプ: {', '.join(main_types)}")
+                
+                if hasattr(self, 'size_card') and hasattr(self.size_card, 'value_label'):
+                    self.size_card.value_label.setText(size_str)
+                    # 3行目：メモリ効率とファイルサイズ推定
+                    if hasattr(self.size_card, 'desc_label'):
+                        avg_row_size = size_bytes / rows if rows > 0 else 0
+                        estimated_csv_size = size_bytes * 1.5  # CSV推定サイズ
+                        if estimated_csv_size < 1024 * 1024:
+                            csv_size_str = f"{estimated_csv_size / 1024:.0f}KB"
+                        else:
+                            csv_size_str = f"{estimated_csv_size / (1024 * 1024):.1f}MB"
+                        self.size_card.desc_label.setText(f"行平均: {avg_row_size:.0f}B | CSV推定: {csv_size_str}")
+                
+                if hasattr(self, 'status_card') and hasattr(self.status_card, 'value_label'):
+                    self.status_card.value_label.setText("完了")
+                    # 3行目：取得時刻と処理時間
+                    if hasattr(self.status_card, 'desc_label'):
+                        from datetime import datetime
+                        current_time = datetime.now().strftime("%H:%M:%S")
+                        self.status_card.desc_label.setText(f"取得完了: {current_time} | 最新データ")
+                    
+                    # ステータスカードの色を緑に変更
+                    self.status_card.color = "#5cb85c"
+                    darker_color = self.darken_color("#5cb85c")
+                    self.status_card.setStyleSheet(f"""
+                        QFrame {{
+                            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                       stop:0 #5cb85c, stop:1 {darker_color});
+                            border: none;
+                            border-radius: 18px;
+                            color: white;
+                        }}
+                        QFrame:hover {{
+                            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                       stop:0 {darker_color}, stop:1 {self.darken_color(darker_color)});
+                        }}
+                    """)
             else:
-                size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
-            
-            # カードを更新
-            self.rows_card.value_label.setText(f"{rows:,}")
-            self.columns_card.value_label.setText(str(cols))
-            self.size_card.value_label.setText(size_str)
-            self.status_card.value_label.setText("完了")
-            
-            # ステータスカードの色を緑に変更
-            self.status_card.color = "#5cb85c"
-            darker_color = self.darken_color("#5cb85c")
-            self.status_card.setStyleSheet(f"""
-                QFrame {{
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                               stop:0 #5cb85c, stop:1 {darker_color});
-                    border: none;
-                    border-radius: 18px;
-                    color: white;
-                }}
-                QFrame:hover {{
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                               stop:0 {darker_color}, stop:1 {self.darken_color(darker_color)});
-                }}
-            """)
-        else:
-            self.rows_card.value_label.setText("0")
-            self.columns_card.value_label.setText("0")
-            self.size_card.value_label.setText("0 KB")
-            self.status_card.value_label.setText("待機中")
-            
-            # ステータスカードの色を赤に戻す
-            self.status_card.color = "#d9534f"
-            darker_color = self.darken_color("#d9534f")
-            self.status_card.setStyleSheet(f"""
-                QFrame {{
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                               stop:0 #d9534f, stop:1 {darker_color});
-                    border: none;
-                    border-radius: 18px;
-                    color: white;
-                }}
-                QFrame:hover {{
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                               stop:0 {darker_color}, stop:1 {self.darken_color(darker_color)});
-                }}
-            """)
+                # データがない場合のリセット
+                if hasattr(self, 'rows_card') and hasattr(self.rows_card, 'value_label'):
+                    self.rows_card.value_label.setText("0")
+                    if hasattr(self.rows_card, 'desc_label'):
+                        self.rows_card.desc_label.setText("データが取得されていません")
+                
+                if hasattr(self, 'columns_card') and hasattr(self.columns_card, 'value_label'):
+                    self.columns_card.value_label.setText("0")
+                    if hasattr(self.columns_card, 'desc_label'):
+                        self.columns_card.desc_label.setText("フィールド情報なし")
+                
+                if hasattr(self, 'size_card') and hasattr(self.size_card, 'value_label'):
+                    self.size_card.value_label.setText("0 KB")
+                    if hasattr(self.size_card, 'desc_label'):
+                        self.size_card.desc_label.setText("メモリ使用量なし")
+                
+                if hasattr(self, 'status_card') and hasattr(self.status_card, 'value_label'):
+                    self.status_card.value_label.setText("待機中")
+                    if hasattr(self.status_card, 'desc_label'):
+                        self.status_card.desc_label.setText("データ取得を開始してください")
+                    
+                    # ステータスカードの色を赤に戻す
+                    self.status_card.color = "#d9534f"
+                    darker_color = self.darken_color("#d9534f")
+                    self.status_card.setStyleSheet(f"""
+                        QFrame {{
+                            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                       stop:0 #d9534f, stop:1 {darker_color});
+                            border: none;
+                            border-radius: 18px;
+                            color: white;
+                        }}
+                        QFrame:hover {{
+                            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                       stop:0 {darker_color}, stop:1 {self.darken_color(darker_color)});
+                        }}
+                    """)
+                    
+            logger.info("データ統計を更新しました")
+        except Exception as e:
+            logger.error(f"データ統計更新エラー: {e}")
+            # エラー時のフォールバック表示
+            if hasattr(self, 'status_card') and hasattr(self.status_card, 'value_label'):
+                self.status_card.value_label.setText("エラー")
+                if hasattr(self.status_card, 'desc_label'):
+                    self.status_card.desc_label.setText(f"統計更新エラー: {str(e)[:30]}...")
     
     def load_settings(self):
         """設定の読み込み"""
