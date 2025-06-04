@@ -179,8 +179,8 @@ class MainWindow(QMainWindow):
         # ウィンドウ設定
         self.setWindowTitle("NotiFetch - Notion データ取得・分析ツール")
         self.setMinimumSize(1200, 800)
-        self.resize(1400, 900)
-        self.center_window()
+        # 起動時に画面を最大化
+        self.showMaximized()
     
     def center_window(self):
         """ウィンドウを画面中央に配置"""
@@ -275,12 +275,12 @@ class MainWindow(QMainWindow):
         sidebar_layout.addStretch()
         
         # フッター情報
-        footer_label = QLabel("Made with ❤️ by NotiFetch Team")
+        footer_label = QLabel("Made with 🤩 by A.T")
         footer_label.setAlignment(Qt.AlignCenter)
         footer_label.setStyleSheet("color: #6c757d; font-size: 10px;")
         sidebar_layout.addWidget(footer_label)
         
-        # 最初のボタンを選択
+        # 最初のボタンを選択🤩
         self.nav_buttons[0].setChecked(True)
     
     def create_content_area(self):
@@ -431,38 +431,6 @@ class MainWindow(QMainWindow):
         page_content = QWidget()
         layout = QVBoxLayout(page_content)
         layout.setSpacing(25)
-        
-        # ヘッダーエリア（ウェルカムメッセージ）
-        header_card = QFrame()
-        header_card.setStyleSheet("""
-            QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                           stop:0 #667eea, stop:1 #764ba2);
-                border-radius: 20px;
-                color: white;
-                margin: 10px;
-            }
-        """)
-        header_layout = QVBoxLayout(header_card)
-        header_layout.setContentsMargins(30, 25, 30, 25)
-        
-        # welcome_label = QLabel("📊 データ取得ダッシュボード")
-        # welcome_label.setStyleSheet("""
-        #     font-size: 28px;
-        #     font-weight: bold;
-        #     color: white;
-        #     margin-bottom: 8px;
-        # """)
-        
-        subtitle_label = QLabel("Notionからデータを取得し、リアルタイムで統計情報を確認できます")
-        subtitle_label.setStyleSheet("""
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.9);
-            margin-bottom: 0px;
-        """)
-        
-        # header_layout.addWidget(welcome_label)
-        header_layout.addWidget(subtitle_label)
         
         # 統計カードエリア（グリッドレイアウト）
         stats_container = QFrame()
@@ -668,7 +636,6 @@ class MainWindow(QMainWindow):
         summary_layout.addWidget(self.data_summary_text)
         
         # メインレイアウトに追加
-        layout.addWidget(header_card)
         layout.addWidget(stats_container)
         layout.addWidget(control_card)
         layout.addWidget(self.progress_bar)
@@ -1160,9 +1127,9 @@ class MainWindow(QMainWindow):
         <h3 style="color: #2c3e50;">NotiFetch v2.0</h3>
         <p style="color: #6c757d;">Notion データ取得・分析ツール</p>
         <br>
-        <p style="color: #6c757d;"><strong>開発者:</strong> NotiFetch Team</p>
+        <p style="color: #6c757d;"><strong>開発者:</strong> A.T Team</p>
         <p style="color: #6c757d;"><strong>ライセンス:</strong> MIT License</p>
-        <p style="color: #6c757d;"><strong>サポート:</strong> support@notifetch.com</p>
+        <p style="color: #6c757d;"><strong>サポート:</strong> takada@araiseimitsu.onmicrosoft.com</p>
         """)
         info_text.setWordWrap(True)
         info_layout.addWidget(info_text)
@@ -2446,7 +2413,7 @@ class MainWindow(QMainWindow):
             self.analyze_btn.setEnabled(True)
             self.auto_insights_btn.setEnabled(True)
             QApplication.processEvents()
-
+    
     def create_infographic(self):
         """インフォグラフィック化"""
         if not self.gemini_client or not self.gemini_client.is_connected:
