@@ -1031,6 +1031,12 @@ class MainWindow(QMainWindow):
             QHeaderView::section:last {
                 border-top-right-radius: 15px;
             }
+            QTableWidget QTableCornerButton::section {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                           stop:0 #667eea, stop:1 #764ba2);
+                border: none;
+                border-top-left-radius: 15px;
+            }
             QScrollBar:vertical {
                 background: #f8f9fa;
                 width: 12px;
