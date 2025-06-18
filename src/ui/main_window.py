@@ -2637,9 +2637,16 @@ class MainWindow(QMainWindow):
                 else:
                     update_progress(message)
             
+            # ユーザーの分析指示を取得
+            user_prompt = self.analysis_input.toPlainText().strip()
+            if not user_prompt:
+                QMessageBox.warning(self, "警告", "分析指示を入力してください。")
+                return
+
             # Gemini APIでHTMLインフォグラフィック生成（プログレス更新付き）
             html_content = self.gemini_client.create_infographic_html(
                 self.current_data,
+                user_prompt=user_prompt,
                 progress_callback=gemini_progress_callback
             )
             
