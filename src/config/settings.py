@@ -48,7 +48,8 @@ class Settings:
                 "page_history": []
             },
             "gemini": {
-                "api_key": ""
+                "api_key": "",
+                "model_name": "gemini-2.5-flash-lite-preview-06-17"
             },
             "ui": {
                 "theme": "light",
@@ -196,4 +197,15 @@ class Settings:
     def clear_page_history(self):
         """ページ履歴をクリア"""
         self.config["notion"]["page_history"] = []
+        self._save_config(self.config)
+    
+    def get_gemini_model_name(self):
+        """Geminiモデル名の取得"""
+        return self.config.get("gemini", {}).get("model_name", "gemini-2.5-flash-lite-preview-06-17")
+    
+    def set_gemini_model_name(self, model_name):
+        """Geminiモデル名の設定"""
+        if "gemini" not in self.config:
+            self.config["gemini"] = {}
+        self.config["gemini"]["model_name"] = model_name
         self._save_config(self.config) 

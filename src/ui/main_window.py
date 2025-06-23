@@ -1103,11 +1103,27 @@ class MainWindow(QMainWindow):
         self.gemini_api_key_input.setPlaceholderText("AIza...")
         self.gemini_api_key_input.setStyleSheet(self.get_input_style())
         
+        # モデル選択コンボボックス
+        self.gemini_model_combo = QComboBox()
+        self.gemini_model_combo.addItem("汎用 (Lite) - 高速・軽量", GeminiClient.LITE_MODEL)
+        self.gemini_model_combo.addItem("ハイスペック (Full) - 高精度分析", GeminiClient.FULL_MODEL)
+        self.gemini_model_combo.addItem("カスタム - 手入力", "custom")
+        self.gemini_model_combo.setStyleSheet(self.get_combo_style())
+        self.gemini_model_combo.currentTextChanged.connect(self.on_model_selection_changed)
+        
+        # カスタムモデル名入力フィールド（初期は非表示）
+        self.custom_model_input = QLineEdit()
+        self.custom_model_input.setPlaceholderText("カスタムモデル名を入力 (例: gemini-pro)")
+        self.custom_model_input.setStyleSheet(self.get_input_style())
+        self.custom_model_input.setVisible(False)
+        
         self.test_gemini_btn = QPushButton("🧪 Gemini 接続テスト")
         self.test_gemini_btn.setStyleSheet(self.get_button_style())
         self.test_gemini_btn.clicked.connect(self.test_gemini_connection)
         
         gemini_layout.addRow("API キー:", self.gemini_api_key_input)
+        gemini_layout.addRow("モデル:", self.gemini_model_combo)
+        gemini_layout.addRow("", self.custom_model_input)
         gemini_layout.addRow("", self.test_gemini_btn)
         
         # 分析指示エリア
@@ -1279,6 +1295,43 @@ class MainWindow(QMainWindow):
                 border-color: #4a90e2;
                 background-color: #f8f9fa;
                 color: #2c3e50;
+            }
+        """
+    
+    def get_combo_style(self):
+        """コンボボックスのスタイル"""
+        return """
+            QComboBox {
+                border: 2px solid #e9ecef;
+                border-radius: 8px;
+                padding: 12px;
+                background-color: white;
+                color: #2c3e50;
+                font-size: 14px;
+                min-width: 200px;
+            }
+            QComboBox:focus {
+                border-color: #4a90e2;
+                background-color: #f8f9fa;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #2c3e50;
+                margin-right: 10px;
+            }
+            QComboBox QAbstractItemView {
+                border: 2px solid #e9ecef;
+                background-color: white;
+                color: #2c3e50;
+                selection-background-color: #4a90e2;
+                selection-color: white;
+                outline: none;
             }
         """
     
@@ -1608,6 +1661,10 @@ class MainWindow(QMainWindow):
             if gemini_key:
                 self.gemini_api_key_input.setText(gemini_key)
             
+            # Geminiモデル設定の読み込み
+            saved_model = self.settings.get_gemini_model_name()
+            self.set_model_combo_selection(saved_model)
+            
             # 最後のページIDの読み込み
             last_page_id = self.settings.get_last_page_id()
             if last_page_id:
@@ -1630,6 +1687,7 @@ class MainWindow(QMainWindow):
             # API設定の保存
             self.settings.set_notion_token(self.notion_token_input.text())
             self.settings.set_gemini_api_key(self.gemini_api_key_input.text())
+            self.settings.set_gemini_model_name(self.get_selected_model_name())
             self.settings.set_last_page_id(self.page_id_input.text())
             
             # UI設定の保存
@@ -1893,6 +1951,38 @@ class MainWindow(QMainWindow):
             logger.error(f"接続テストエラー: {e}")
             QMessageBox.critical(self, "エラー", f"❌ 接続テストに失敗しました:\n{e}")
     
+    def on_model_selection_changed(self, text):
+        """モデル選択が変更された時の処理"""
+        # カスタム選択時はテキスト入力フィールドを表示、それ以外は非表示
+        if "カスタム" in text:
+            self.custom_model_input.setVisible(True)
+        else:
+            self.custom_model_input.setVisible(False)
+    
+    def get_selected_model_name(self):
+        """選択されたモデル名を取得"""
+        current_data = self.gemini_model_combo.currentData()
+        if current_data == "custom":
+            # カスタムモデル名を返す
+            custom_name = self.custom_model_input.text().strip()
+            return custom_name if custom_name else GeminiClient.LITE_MODEL
+        else:
+            # プリセットモデル名を返す
+            return current_data
+    
+    def set_model_combo_selection(self, model_name):
+        """保存されたモデル名に基づいてコンボボックスの選択を設定"""
+        # プリセットモデルかどうかをチェック
+        if model_name == GeminiClient.LITE_MODEL:
+            self.gemini_model_combo.setCurrentIndex(0)
+        elif model_name == GeminiClient.FULL_MODEL:
+            self.gemini_model_combo.setCurrentIndex(1)
+        else:
+            # カスタムモデルの場合
+            self.gemini_model_combo.setCurrentIndex(2)
+            self.custom_model_input.setText(model_name)
+            self.custom_model_input.setVisible(True)
+
     def test_gemini_connection(self):
         """Gemini接続テスト"""
         api_key = self.gemini_api_key_input.text().strip()
@@ -1901,10 +1991,12 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            self.gemini_client = GeminiClient(api_key)
+            # 選択されたモデル名を取得
+            model_name = self.get_selected_model_name()
+            self.gemini_client = GeminiClient(api_key, model_name)
             if self.gemini_client.test_connection():
-                QMessageBox.information(self, "成功", "✅ Gemini APIに正常に接続されました。")
-                self.status_bar.showMessage("🤖 Gemini API 接続成功")
+                QMessageBox.information(self, "成功", f"✅ Gemini APIに正常に接続されました。\n使用モデル: {model_name}")
+                self.status_bar.showMessage(f"🤖 Gemini API 接続成功 ({model_name})")
                 # 分析ボタンを有効化
                 if self.current_data is not None and not self.current_data.empty:
                     self.analyze_btn.setEnabled(True)

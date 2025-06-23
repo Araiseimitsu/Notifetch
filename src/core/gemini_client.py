@@ -9,14 +9,20 @@ logger = logging.getLogger(__name__)
 class GeminiClient:
     """Gemini APIクライアント"""
     
-    def __init__(self, api_key: str):
+    # プリセットモデル定数
+    LITE_MODEL = "gemini-2.5-flash-lite-preview-06-17"  # 汎用・デフォルト
+    FULL_MODEL = "gemini-2.5-flash"  # ハイスペック分析用
+    
+    def __init__(self, api_key: str, model_name: str = None):
         """
         初期化
         
         Args:
             api_key: Gemini APIキー
+            model_name: 使用するモデル名（デフォルト: LITE_MODEL）
         """
         self.api_key = api_key
+        self.model_name = model_name or self.LITE_MODEL
         self.model = None
         self.is_connected = False
         
@@ -27,12 +33,10 @@ class GeminiClient:
         """Gemini APIクライアントの初期化"""
         try:
             genai.configure(api_key=self.api_key)
-            # 最新のGeminiモデルを使用
-            # self.model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
-            self.model = genai.GenerativeModel('gemini-2.0-flash-lite')
-            # self.model = genai.GenerativeModel('gemma-3n-e4b-it')
+            # 指定されたモデル名を使用
+            self.model = genai.GenerativeModel(self.model_name)
             self.is_connected = True
-            logger.info("Gemini APIクライアントが初期化されました")
+            logger.info(f"Gemini APIクライアントが初期化されました (モデル: {self.model_name})")
         except Exception as e:
             logger.error(f"Gemini APIクライアントの初期化に失敗: {e}")
             self.is_connected = False
@@ -292,3 +296,50 @@ class GeminiClient:
         except Exception as e:
             logger.error(f"HTMLインフォグラフィック生成エラー: {e}")
             return f"HTMLインフォグラフィック生成中にエラーが発生しました: {e}"
+    
+    def set_model(self, model_name: str) -> bool:
+        """
+        使用するモデルを変更
+        
+        Args:
+            model_name: 新しいモデル名
+            
+        Returns:
+            bool: モデル変更が成功した場合True
+        """
+        try:
+            # 古いモデル名を保存（失敗時の復元のため）
+            old_model_name = self.model_name
+            
+            # 新しいモデル名を設定
+            self.model_name = model_name
+            
+            # クライアントを再初期化
+            self._initialize_client()
+            
+            # 接続テストを実行
+            if self.test_connection():
+                logger.info(f"モデルを {old_model_name} から {model_name} に変更しました")
+                return True
+            else:
+                # 接続テストに失敗した場合、元のモデルに戻す
+                self.model_name = old_model_name
+                self._initialize_client()
+                logger.error(f"モデル {model_name} への変更に失敗しました。元のモデル {old_model_name} に戻します")
+                return False
+                
+        except Exception as e:
+            # エラーが発生した場合も元のモデルに戻す
+            self.model_name = old_model_name if 'old_model_name' in locals() else self.LITE_MODEL
+            self._initialize_client()
+            logger.error(f"モデル変更エラー: {e}")
+            return False
+    
+    def get_current_model(self) -> str:
+        """
+        現在使用中のモデル名を取得
+        
+        Returns:
+            str: 現在のモデル名
+        """
+        return self.model_name

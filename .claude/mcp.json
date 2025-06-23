@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@context7/mcp-server"],
+      "env": {
+        "CONTEXT7_API_KEY": ""
+      }
+    },
+    "deepwiki": {
+      "command": "npx",
+      "args": ["-y", "@regenrek/deepwiki-mcp"]
+    }
+  }
+}
